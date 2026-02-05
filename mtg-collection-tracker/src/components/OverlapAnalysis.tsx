@@ -28,6 +28,12 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
   const [priceLoading, setPriceLoading] = useState(false);
   const [priceProgress, setPriceProgress] = useState(0);
   const [priceError, setPriceError] = useState<string | null>(null);
+  
+  // Separate state for Cards Not Owned section prices
+  const [notOwnedPriceMap, setNotOwnedPriceMap] = useState<Map<string, number | null>>(new Map());
+  const [notOwnedPriceLoading, setNotOwnedPriceLoading] = useState(false);
+  const [notOwnedPriceProgress, setNotOwnedPriceProgress] = useState(0);
+  const [notOwnedPriceError, setNotOwnedPriceError] = useState<string | null>(null);
 
   const fetchPrices = async () => {
     if (!analysis) return;
@@ -58,9 +64,42 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
     }
   };
 
+  const fetchNotOwnedPrices = async () => {
+    if (!analysis) return;
+    
+    setNotOwnedPriceLoading(true);
+    setNotOwnedPriceError(null);
+    setNotOwnedPriceProgress(0);
+    
+    try {
+      const cardsToPrice = analysis.cardsNotOwned
+        .filter(c => includeBasicLands || !isBasicLand(c.cardName))
+        .map(c => ({ name: c.cardName, quantity: c.totalNeeded }));
+      
+      if (cardsToPrice.length === 0) {
+        setNotOwnedPriceError('No cards to price');
+        setNotOwnedPriceLoading(false);
+        return;
+      }
+      
+      const prices = await fetchCardPrices(cardsToPrice, setNotOwnedPriceProgress);
+      setNotOwnedPriceMap(prices);
+    } catch (error) {
+      console.error('Error fetching prices:', error);
+      setNotOwnedPriceError('Failed to fetch prices. Please try again.');
+    } finally {
+      setNotOwnedPriceLoading(false);
+    }
+  };
+
   const priceStats = analysis ? calculateTotalPrice(
     analysis.overlappingCards.filter(c => includeBasicLands || !isBasicLand(c.cardName)),
     priceMap
+  ) : null;
+
+  const notOwnedPriceStats = analysis ? calculateTotalPrice(
+    analysis.cardsNotOwned.filter(c => includeBasicLands || !isBasicLand(c.cardName)),
+    notOwnedPriceMap
   ) : null;
 
   if (!analysis) {
@@ -106,6 +145,30 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'missing-cards.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportNotOwnedCards = () => {
+    // Get all cards not owned at all
+    const notOwnedCards = analysis.cardsNotOwned
+      .filter(c => includeBasicLands || !isBasicLand(c.cardName))
+      .map(c => `${c.totalNeeded} ${c.cardName}`)
+      .join('\n');
+    
+    if (!notOwnedCards) {
+      alert('No cards to export!');
+      return;
+    }
+
+    // Create and download the file
+    const blob = new Blob([notOwnedCards], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cards-not-owned.txt';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -330,9 +393,74 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
             </p>
           </div>
 
+          {/* Buttons for Cards Not Owned */}
+          <div className="flex flex-wrap gap-2 items-center justify-end">
+            <button
+              onClick={fetchNotOwnedPrices}
+              disabled={notOwnedPriceLoading || filteredNotOwnedCards.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            >
+              {notOwnedPriceLoading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {notOwnedPriceProgress}%
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Get Prices
+                </>
+              )}
+            </button>
+            <button
+              onClick={exportNotOwnedCards}
+              disabled={filteredNotOwnedCards.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export
+            </button>
+          </div>
+
+          {/* Price Summary for Not Owned */}
+          {notOwnedPriceStats && notOwnedPriceMap.size > 0 && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <p className="text-lg font-bold text-green-800 dark:text-green-300">
+                    Estimated Total: ${notOwnedPriceStats.total.toFixed(2)} USD
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    {notOwnedPriceStats.cardsWithPrice} cards priced
+                    {notOwnedPriceStats.cardsWithoutPrice > 0 && (
+                      <span className="text-yellow-600 dark:text-yellow-400">
+                        {' '}• {notOwnedPriceStats.cardsWithoutPrice} cards not found
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  Prices from Scryfall (TCGPlayer market)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {notOwnedPriceError && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-red-700 dark:text-red-300 text-sm">
+              {notOwnedPriceError}
+            </div>
+          )}
+
           <div className="space-y-3">
             {filteredNotOwnedCards.map((card) => (
-              <CardOverlapItem key={card.cardName} card={card} priceMap={priceMap} />
+              <CardOverlapItem key={card.cardName} card={card} priceMap={notOwnedPriceMap} />
             ))}
           </div>
 

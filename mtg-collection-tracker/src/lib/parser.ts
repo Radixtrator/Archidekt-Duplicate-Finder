@@ -87,7 +87,7 @@ export function parseDeckList(content: string): Card[] {
 // Clean card name by removing set codes, collector numbers, etc.
 // Archidekt format: "Card Name (set) 123 *F* [Category]"
 // Also handles: "Card Name ^Have,#37d67a^" category/color codes
-function cleanCardName(name: string): string {
+export function cleanCardName(name: string): string {
   return name
     // Remove Archidekt category/color codes: ^Have,#37d67a^ or ^Category^
     .replace(/\s*\^[^^]*\^\s*/g, ' ')
@@ -166,11 +166,13 @@ export function analyzeDeckOverlaps(collection: Collection, decks: Deck[]): Deck
   // Process each deck
   for (const deck of decks) {
     for (const card of deck.cards) {
-      const normalizedName = normalizeCardName(card.name);
+      // Clean card name to handle legacy data with category codes
+      const cleanedName = cleanCardName(card.name);
+      const normalizedName = normalizeCardName(cleanedName);
       
       if (!cardMap.has(normalizedName)) {
         cardMap.set(normalizedName, {
-          cardName: card.name, // Use original casing from first occurrence
+          cardName: cleanedName, // Use cleaned name
           totalNeeded: 0,
           owned: 0,
           shortage: 0,
