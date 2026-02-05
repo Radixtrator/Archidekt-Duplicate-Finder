@@ -18,6 +18,12 @@ export default function Home() {
   const [showDeckNameModal, setShowDeckNameModal] = useState(false);
   const [pendingDeckContent, setPendingDeckContent] = useState<string | null>(null);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showNotification = (type: 'success' | 'error', message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   // Load data from localStorage on mount
   useEffect(() => {
@@ -39,14 +45,31 @@ export default function Home() {
     runAnalysis();
   }, [runAnalysis]);
 
-  const handleCollectionUpload = (content: string) => {
-    const cards = parseCardList(content);
-    const newCollection: Collection = {
-      cards,
-      uploadedAt: new Date(),
-    };
-    setCollection(newCollection);
-    saveCollection(newCollection);
+  const handleCollectionUpload = (content: string, fileName: string) => {
+    try {
+      if (!content.trim()) {
+        showNotification('error', 'The file appears to be empty.');
+        return;
+      }
+      
+      const cards = parseCardList(content);
+      
+      if (cards.length === 0) {
+        showNotification('error', 'No cards found in file. Please check the format.');
+        return;
+      }
+      
+      const newCollection: Collection = {
+        cards,
+        uploadedAt: new Date(),
+      };
+      setCollection(newCollection);
+      saveCollection(newCollection);
+      showNotification('success', `Loaded ${cards.length} cards from ${fileName}`);
+    } catch (error) {
+      console.error('Error parsing collection:', error);
+      showNotification('error', 'Failed to parse collection. Please check the file format.');
+    }
   };
 
   const handleDeckUpload = (content: string, fileName: string) => {
@@ -60,21 +83,39 @@ export default function Home() {
   const confirmDeckUpload = () => {
     if (!pendingDeckContent || !deckName.trim()) return;
 
-    const cards = parseCardList(pendingDeckContent);
-    const newDeck: Deck = {
-      id: generateId(),
-      name: deckName.trim(),
-      cards,
-      uploadedAt: new Date(),
-    };
-    
-    const updatedDecks = [...decks, newDeck];
-    setDecks(updatedDecks);
-    saveDecks(updatedDecks);
-    
-    setShowDeckNameModal(false);
-    setPendingDeckContent(null);
-    setDeckName('');
+    try {
+      const cards = parseCardList(pendingDeckContent);
+      
+      if (cards.length === 0) {
+        showNotification('error', 'No cards found in deck. Please check the format.');
+        setShowDeckNameModal(false);
+        setPendingDeckContent(null);
+        setDeckName('');
+        return;
+      }
+      
+      const newDeck: Deck = {
+        id: generateId(),
+        name: deckName.trim(),
+        cards,
+        uploadedAt: new Date(),
+      };
+      
+      const updatedDecks = [...decks, newDeck];
+      setDecks(updatedDecks);
+      saveDecks(updatedDecks);
+      showNotification('success', `Added "${deckName.trim()}" with ${cards.length} cards`);
+      
+      setShowDeckNameModal(false);
+      setPendingDeckContent(null);
+      setDeckName('');
+    } catch (error) {
+      console.error('Error parsing deck:', error);
+      showNotification('error', 'Failed to parse deck. Please check the file format.');
+      setShowDeckNameModal(false);
+      setPendingDeckContent(null);
+      setDeckName('');
+    }
   };
 
   const removeDeck = (id: string) => {
@@ -99,6 +140,38 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      {/* Notification Toast */}
+      {notification && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2 fade-in duration-300">
+          <div
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg ${
+              notification.type === 'success'
+                ? 'bg-green-600 text-white'
+                : 'bg-red-600 text-white'
+            }`}
+          >
+            {notification.type === 'success' ? (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            <span className="font-medium">{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-2 hover:opacity-75"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-6xl mx-auto px-4 py-6">
