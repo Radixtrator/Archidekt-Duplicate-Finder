@@ -2,6 +2,7 @@
 
 import { DeckAnalysis, CardOverlap } from '@/types';
 import { useState } from 'react';
+import { fetchCardPrices, calculateTotalPrice } from '@/lib/scryfall';
 
 const BASIC_LANDS = [
   'plains', 'island', 'swamp', 'mountain', 'forest',
@@ -23,6 +24,44 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
   const [sortBy, setSortBy] = useState<'shortage' | 'decks' | 'name'>('shortage');
   const [includeBasicLands, setIncludeBasicLands] = useState(false);
   const [activeSection, setActiveSection] = useState<'overlapping' | 'notOwned'>('overlapping');
+  const [priceMap, setPriceMap] = useState<Map<string, number | null>>(new Map());
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceProgress, setPriceProgress] = useState(0);
+  const [priceError, setPriceError] = useState<string | null>(null);
+
+  const fetchPrices = async () => {
+    if (!analysis) return;
+    
+    setPriceLoading(true);
+    setPriceError(null);
+    setPriceProgress(0);
+    
+    try {
+      const cardsToPrice = analysis.overlappingCards
+        .filter(c => c.shortage > 0)
+        .filter(c => includeBasicLands || !isBasicLand(c.cardName))
+        .map(c => ({ name: c.cardName, quantity: c.shortage }));
+      
+      if (cardsToPrice.length === 0) {
+        setPriceError('No missing cards to price');
+        setPriceLoading(false);
+        return;
+      }
+      
+      const prices = await fetchCardPrices(cardsToPrice, setPriceProgress);
+      setPriceMap(prices);
+    } catch (error) {
+      console.error('Error fetching prices:', error);
+      setPriceError('Failed to fetch prices. Please try again.');
+    } finally {
+      setPriceLoading(false);
+    }
+  };
+
+  const priceStats = analysis ? calculateTotalPrice(
+    analysis.overlappingCards.filter(c => includeBasicLands || !isBasicLand(c.cardName)),
+    priceMap
+  ) : null;
 
   if (!analysis) {
     return (
@@ -204,22 +243,75 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
                 </select>
               </div>
             </div>
-            <button
-              onClick={exportMissingCards}
-              disabled={filterBasicLands(analysis.overlappingCards).filter(c => c.shortage > 0).length === 0}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Export Missing Cards
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchPrices}
+                disabled={priceLoading || filterBasicLands(analysis.overlappingCards).filter(c => c.shortage > 0).length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              >
+                {priceLoading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {priceProgress}%
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Get Prices
+                  </>
+                )}
+              </button>
+              <button
+                onClick={exportMissingCards}
+                disabled={filterBasicLands(analysis.overlappingCards).filter(c => c.shortage > 0).length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export
+              </button>
+            </div>
           </div>
+
+          {/* Price Summary */}
+          {priceStats && priceMap.size > 0 && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <p className="text-lg font-bold text-green-800 dark:text-green-300">
+                    Estimated Total: ${priceStats.total.toFixed(2)} USD
+                  </p>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    {priceStats.cardsWithPrice} cards priced
+                    {priceStats.cardsWithoutPrice > 0 && (
+                      <span className="text-yellow-600 dark:text-yellow-400">
+                        {' '}• {priceStats.cardsWithoutPrice} cards not found
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <p className="text-xs text-green-600 dark:text-green-400">
+                  Prices from Scryfall (TCGPlayer market)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {priceError && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-red-700 dark:text-red-300 text-sm">
+              {priceError}
+            </div>
+          )}
 
           {/* Card List */}
           <div className="space-y-3">
             {sortedOverlappingCards.map((card) => (
-              <CardOverlapItem key={card.cardName} card={card} />
+              <CardOverlapItem key={card.cardName} card={card} priceMap={priceMap} />
             ))}
           </div>
 
@@ -240,13 +332,13 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
 
           <div className="space-y-3">
             {filteredNotOwnedCards.map((card) => (
-              <CardOverlapItem key={card.cardName} card={card} />
+              <CardOverlapItem key={card.cardName} card={card} priceMap={priceMap} />
             ))}
           </div>
 
           {filteredNotOwnedCards.length === 0 && (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              You own at least one copy of every card in your decks! 🎉
+              You own at least one copy of every card in your decks!
             </div>
           )}
         </>
@@ -339,9 +431,11 @@ function CardImagePreview({ cardName, children }: { cardName: string; children: 
   );
 }
 
-function CardOverlapItem({ card }: { card: CardOverlap }) {
+function CardOverlapItem({ card, priceMap }: { card: CardOverlap; priceMap?: Map<string, number | null> }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasShortage = card.shortage > 0;
+  const price = priceMap?.get(card.cardName.toLowerCase());
+  const totalPrice = price && card.shortage > 0 ? price * card.shortage : null;
 
   return (
     <div
@@ -374,12 +468,22 @@ function CardOverlapItem({ card }: { card: CardOverlap }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
             </a>
+            {price !== undefined && price !== null && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                ${price.toFixed(2)} ea
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             In {card.decks.length} decks • Need {card.totalNeeded} • Own {card.owned}
             {hasShortage && (
               <span className="text-red-600 dark:text-red-400 font-medium">
                 {' '}• Missing {card.shortage}
+              </span>
+            )}
+            {totalPrice !== null && (
+              <span className="text-green-600 dark:text-green-400 font-medium">
+                {' '}• ${totalPrice.toFixed(2)}
               </span>
             )}
           </p>
