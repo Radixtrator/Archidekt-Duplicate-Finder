@@ -284,7 +284,21 @@ function CardOverlapItem({ card }: { card: CardOverlap }) {
         className="w-full p-4 flex items-center justify-between text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
       >
         <div className="flex-1">
-          <h3 className="font-medium text-gray-900 dark:text-white">{card.cardName}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-gray-900 dark:text-white">{card.cardName}</h3>
+            <a
+              href={`https://scryfall.com/search?q=!"${encodeURIComponent(card.cardName)}"`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              title="View on Scryfall"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             In {card.decks.length} decks • Need {card.totalNeeded} • Own {card.owned}
             {hasShortage && (
