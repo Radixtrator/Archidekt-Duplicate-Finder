@@ -3,7 +3,11 @@
 import { DeckAnalysis, CardOverlap } from '@/types';
 import { useState } from 'react';
 
-const BASIC_LANDS = ['plains', 'island', 'swamp', 'mountain', 'forest'];
+const BASIC_LANDS = [
+  'plains', 'island', 'swamp', 'mountain', 'forest',
+  'snow-covered plains', 'snow-covered island', 'snow-covered swamp', 
+  'snow-covered mountain', 'snow-covered forest'
+];
 
 const isBasicLand = (cardName: string) => {
   const normalized = cardName.toLowerCase().trim();
@@ -142,7 +146,7 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
           </span>
         </label>
         <span className="text-xs text-gray-500 dark:text-gray-400">
-          (Plains, Island, Swamp, Mountain, Forest)
+          (including Snow-Covered)
         </span>
       </div>
 
