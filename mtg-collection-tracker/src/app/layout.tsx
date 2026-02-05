@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MTG Collection Tracker",
-  description: "Track card overlaps across your Magic: The Gathering decks",
+  title: "Deckflict",
+  description: "Find card conflicts across your Magic: The Gathering decks",
 };
 
 export default function RootLayout({
