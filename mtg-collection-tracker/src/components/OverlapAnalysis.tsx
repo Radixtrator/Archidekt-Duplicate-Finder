@@ -3,6 +3,13 @@
 import { DeckAnalysis, CardOverlap } from '@/types';
 import { useState } from 'react';
 
+const BASIC_LANDS = ['plains', 'island', 'swamp', 'mountain', 'forest'];
+
+const isBasicLand = (cardName: string) => {
+  const normalized = cardName.toLowerCase().trim();
+  return BASIC_LANDS.includes(normalized);
+};
+
 interface OverlapAnalysisProps {
   analysis: DeckAnalysis | null;
 }
@@ -10,6 +17,8 @@ interface OverlapAnalysisProps {
 export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
   const [filter, setFilter] = useState<'all' | 'shortage' | 'sufficient'>('all');
   const [sortBy, setSortBy] = useState<'shortage' | 'decks' | 'name'>('shortage');
+  const [includeBasicLands, setIncludeBasicLands] = useState(false);
+  const [activeSection, setActiveSection] = useState<'overlapping' | 'notOwned'>('overlapping');
 
   if (!analysis) {
     return (
@@ -39,6 +48,7 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
     // Get all cards with shortage (includes cards not owned at all)
     const missingCards = analysis.overlappingCards
       .filter(c => c.shortage > 0)
+      .filter(c => includeBasicLands || !isBasicLand(c.cardName))
       .map(c => `${c.shortage} ${c.cardName}`)
       .join('\n');
     
@@ -59,13 +69,19 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
     URL.revokeObjectURL(url);
   };
 
-  const filteredCards = analysis.overlappingCards.filter((card) => {
+  // Filter out basic lands unless toggle is on
+  const filterBasicLands = (cards: CardOverlap[]) => {
+    if (includeBasicLands) return cards;
+    return cards.filter(c => !isBasicLand(c.cardName));
+  };
+
+  const filteredOverlappingCards = filterBasicLands(analysis.overlappingCards).filter((card) => {
     if (filter === 'shortage') return card.shortage > 0;
     if (filter === 'sufficient') return card.shortage === 0;
     return true;
   });
 
-  const sortedCards = [...filteredCards].sort((a, b) => {
+  const sortedOverlappingCards = [...filteredOverlappingCards].sort((a, b) => {
     if (sortBy === 'shortage') {
       if (b.shortage !== a.shortage) return b.shortage - a.shortage;
       return b.decks.length - a.decks.length;
@@ -77,83 +93,159 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
     return a.cardName.localeCompare(b.cardName);
   });
 
+  const filteredNotOwnedCards = filterBasicLands(analysis.cardsNotOwned);
+
   return (
     <div className="space-y-6">
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          label="Cards in Multiple Decks"
-          value={analysis.overlappingCards.length}
-          color="blue"
-        />
-        <StatCard
-          label="Cards with Shortage"
-          value={analysis.overlappingCards.filter(c => c.shortage > 0).length}
-          color="red"
-        />
-        <StatCard
-          label="Cards Covered"
-          value={analysis.overlappingCards.filter(c => c.shortage === 0).length}
-          color="green"
-        />
-        <StatCard
-          label="Cards Not Owned"
-          value={analysis.overlappingCards.filter(c => c.owned === 0).length}
-          color="purple"
-        />
-      </div>
-
-      {/* Filters and Export */}
-      <div className="flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter:</label>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value as typeof filter)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm"
-            >
-              <option value="all">All Cards</option>
-              <option value="shortage">Cards with Shortage</option>
-              <option value="sufficient">Cards You Own</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm"
-            >
-              <option value="shortage">Shortage (High to Low)</option>
-              <option value="decks">Number of Decks</option>
-              <option value="name">Card Name</option>
-            </select>
-          </div>
-        </div>
+      {/* Section Tabs */}
+      <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
         <button
-          onClick={exportMissingCards}
-          disabled={analysis.overlappingCards.filter(c => c.shortage > 0).length === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+          onClick={() => setActiveSection('overlapping')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeSection === 'overlapping'
+              ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export Missing Cards
+          Cards in Multiple Decks
+          <span className="ml-2 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs px-2 py-0.5 rounded-full">
+            {filterBasicLands(analysis.overlappingCards).length}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveSection('notOwned')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeSection === 'notOwned'
+              ? 'border-purple-500 text-purple-600 dark:text-purple-400'
+              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+          }`}
+        >
+          Cards Not Owned
+          <span className="ml-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs px-2 py-0.5 rounded-full">
+            {filteredNotOwnedCards.length}
+          </span>
         </button>
       </div>
 
-      {/* Card List */}
-      <div className="space-y-3">
-        {sortedCards.map((card) => (
-          <CardOverlapItem key={card.cardName} card={card} />
-        ))}
+      {/* Basic Lands Toggle */}
+      <div className="flex items-center gap-2">
+        <label className="relative inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeBasicLands}
+            onChange={(e) => setIncludeBasicLands(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+          <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            Include Basic Lands
+          </span>
+        </label>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          (Plains, Island, Swamp, Mountain, Forest)
+        </span>
       </div>
 
-      {filteredCards.length === 0 && (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          No cards match the current filter.
-        </div>
+      {activeSection === 'overlapping' ? (
+        <>
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard
+              label="Cards in Multiple Decks"
+              value={filterBasicLands(analysis.overlappingCards).length}
+              color="blue"
+            />
+            <StatCard
+              label="Cards with Shortage"
+              value={filterBasicLands(analysis.overlappingCards).filter(c => c.shortage > 0).length}
+              color="red"
+            />
+            <StatCard
+              label="Cards Covered"
+              value={filterBasicLands(analysis.overlappingCards).filter(c => c.shortage === 0).length}
+              color="green"
+            />
+            <StatCard
+              label="Cards Not Owned"
+              value={filterBasicLands(analysis.overlappingCards).filter(c => c.owned === 0).length}
+              color="purple"
+            />
+          </div>
+
+          {/* Filters and Export */}
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Filter:</label>
+                <select
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value as typeof filter)}
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm"
+                >
+                  <option value="all">All Cards</option>
+                  <option value="shortage">Cards with Shortage</option>
+                  <option value="sufficient">Cards You Own</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sort by:</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm"
+                >
+                  <option value="shortage">Shortage (High to Low)</option>
+                  <option value="decks">Number of Decks</option>
+                  <option value="name">Card Name</option>
+                </select>
+              </div>
+            </div>
+            <button
+              onClick={exportMissingCards}
+              disabled={filterBasicLands(analysis.overlappingCards).filter(c => c.shortage > 0).length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export Missing Cards
+            </button>
+          </div>
+
+          {/* Card List */}
+          <div className="space-y-3">
+            {sortedOverlappingCards.map((card) => (
+              <CardOverlapItem key={card.cardName} card={card} />
+            ))}
+          </div>
+
+          {filteredOverlappingCards.length === 0 && (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              No cards match the current filter.
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Cards Not Owned Section */}
+          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 mb-4">
+            <p className="text-purple-700 dark:text-purple-300 text-sm">
+              These are cards in your decks that you don&apos;t own any copies of.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {filteredNotOwnedCards.map((card) => (
+              <CardOverlapItem key={card.cardName} card={card} />
+            ))}
+          </div>
+
+          {filteredNotOwnedCards.length === 0 && (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              You own at least one copy of every card in your decks! 🎉
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -203,10 +203,16 @@ export function analyzeDeckOverlaps(collection: Collection, decks: Deck[]): Deck
       return b.decks.length - a.decks.length;
     });
   
+  // Get cards not owned at all
+  const cardsNotOwned = Array.from(cardMap.values())
+    .filter(card => card.owned === 0)
+    .sort((a, b) => a.cardName.localeCompare(b.cardName));
+  
   const allCards = Array.from(cardMap.values());
   
   return {
     overlappingCards,
+    cardsNotOwned,
     totalUniqueCards: allCards.length,
     totalCardsNeeded: allCards.reduce((sum, card) => sum + card.totalNeeded, 0),
     cardsWithShortage: allCards.filter(card => card.shortage > 0).length,

@@ -36,6 +36,7 @@ export interface CardOverlap {
 
 export interface DeckAnalysis {
   overlappingCards: CardOverlap[];
+  cardsNotOwned: CardOverlap[];
   totalUniqueCards: number;
   totalCardsNeeded: number;
   cardsWithShortage: number;
