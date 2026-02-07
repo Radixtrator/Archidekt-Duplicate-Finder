@@ -219,7 +219,7 @@ export function analyzeDeckOverlaps(collection: Collection, decks: Deck[]): Deck
   
   // Get cards not owned at all
   const cardsNotOwned = Array.from(cardMap.values())
-    .filter(card => card.owned === 0)
+    .filter(card => card.shortage > 0)
     .sort((a, b) => a.cardName.localeCompare(b.cardName));
   
   const allCards = Array.from(cardMap.values());

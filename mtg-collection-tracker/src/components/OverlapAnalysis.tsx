@@ -264,7 +264,7 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
               : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
           }`}
         >
-          Cards Not Owned
+          Missing Cards
           <span className="ml-2 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 text-xs px-2 py-0.5 rounded-full">
             {filteredNotOwnedCards.length}
           </span>
@@ -424,10 +424,10 @@ export default function OverlapAnalysis({ analysis }: OverlapAnalysisProps) {
         </>
       ) : (
         <>
-          {/* Cards Not Owned Section */}
+          {/* Missing Cards Section */}
           <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 mb-4">
             <p className="text-purple-700 dark:text-purple-300 text-sm">
-              These are cards in your decks that you don&apos;t own any copies of.
+              These are cards you need to acquire - you either don&apos;t own them or don&apos;t have enough copies.
             </p>
           </div>
 
