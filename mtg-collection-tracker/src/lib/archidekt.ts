@@ -49,7 +49,7 @@ interface ArchidektDeckResponse {
  */
 export async function fetchArchidektDeck(
   deckId: string,
-): Promise<{ name: string; cards: Card[] }> {
+): Promise<{ name: string; cards: Card[]; commanderName?: string }> {
   const response = await fetch(`/api/archidekt/${deckId}`);
 
   if (!response.ok) {
@@ -74,105 +74,11 @@ export async function fetchArchidektDeck(
       };
     });
 
-  return { name: data.name, cards };
-}
+  // Find the commander: a card with a "Commander" category
+  const commanderEntry = data.cards.find((c) =>
+    c.categories.some((cat) => cat.toLowerCase() === 'commander'),
+  );
+  const commanderName = commanderEntry?.card.oracleCard.name;
 
-// ---------------------------------------------------------------------------
-// Collection helpers
-// ---------------------------------------------------------------------------
-
-export type CollectionInput =
-  | { type: 'collectionId'; value: string }
-  | { type: 'username'; value: string };
-
-/**
- * Parse an Archidekt collection URL or bare identifier.
- *
- * Supported formats:
- *   https://archidekt.com/collection/v2/832552          ← shared collection link
- *   https://archidekt.com/collection/v2/832552?collectionGame=1
- *   https://archidekt.com/u/USERNAME/collection
- *   https://archidekt.com/u/USERNAME
- *   USERNAME  (raw)
- */
-export function extractCollectionInput(input: string): CollectionInput | null {
-  const trimmed = input.trim();
-
-  // Shared collection link: /collection/v2/{id}
-  const idMatch = trimmed.match(/archidekt\.com\/collection\/v2\/(\d+)/i);
-  if (idMatch) return { type: 'collectionId', value: idMatch[1] };
-
-  // Profile URL: /u/USERNAME or /u/USERNAME/collection
-  const userMatch = trimmed.match(/archidekt\.com\/u\/([A-Za-z0-9_\-]+)/i);
-  if (userMatch) return { type: 'username', value: userMatch[1] };
-
-  // Raw username — alphanumeric + _ and -
-  if (/^[A-Za-z0-9_\-]{1,64}$/.test(trimmed)) return { type: 'username', value: trimmed };
-
-  return null;
-}
-
-interface ArchidektCollectionCard {
-  quantity: number;
-  card: {
-    oracleCard: {
-      name: string;
-    };
-    edition: {
-      editioncode: string;
-      name: string;
-    };
-    collectorNumber?: string;
-  };
-  foil?: boolean;
-  condition?: string;
-  language?: string;
-}
-
-interface ArchidektCollectionResponse {
-  username: string;
-  count: number;
-  cards: ArchidektCollectionCard[];
-}
-
-/**
- * Fetch an Archidekt collection via our proxy route.
- * Accepts either a shared collection ID or a username.
- */
-export async function fetchArchidektCollection(
-  input: CollectionInput,
-): Promise<{ username: string; cards: Card[] }> {
-  const qs =
-    input.type === 'collectionId'
-      ? `collectionId=${encodeURIComponent(input.value)}`
-      : `username=${encodeURIComponent(input.value)}`;
-
-  const response = await fetch(`/api/archidekt/collection?${qs}`);
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const msg =
-      body?.error ||
-      (response.status === 404
-        ? 'Collection not found on Archidekt. Check the URL and make sure the collection is public.'
-        : response.status === 403
-          ? 'This collection is private. Make it public on Archidekt first.'
-          : `Failed to fetch collection (HTTP ${response.status})`);
-    throw new Error(msg);
-  }
-
-  const data: ArchidektCollectionResponse = await response.json();
-
-  const cards: Card[] = data.cards.map((c) => ({
-    name: c.card.oracleCard.name,
-    quantity: c.quantity,
-    setCode: c.card.edition?.editioncode || undefined,
-    setName: c.card.edition?.name || undefined,
-    collectorNumber: c.card.collectorNumber || undefined,
-    foil: c.foil || undefined,
-    condition: c.condition || undefined,
-    language: c.language || undefined,
-  }));
-
-  return { username: data.username, cards };
+  return { name: data.name, cards, commanderName };
 }

@@ -18,6 +18,7 @@ export interface Deck {
   cards: Card[];
   uploadedAt: Date;
   archidektId?: string;
+  commanderName?: string;
 }
 
 export interface Collection {

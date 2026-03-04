@@ -11,6 +11,42 @@ interface DeckListProps {
   onRefresh: (id: string) => Promise<void>;
 }
 
+/**
+ * Build a Scryfall art-crop image URL for a named card.
+ * Uses the `format=image` redirect endpoint so no separate fetch is needed.
+ */
+function scryfallArtUrl(cardName: string) {
+  return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cardName)}&format=image&version=art_crop`;
+}
+
+function CommanderArt({ cardName }: { cardName?: string }) {
+  const [errored, setErrored] = useState(false);
+
+  if (!cardName || errored) {
+    // Placeholder – MTG card-back style
+    return (
+      <div className="shrink-0 w-[52px] h-[38px] rounded-md bg-[#1a1a1a] border border-[#333] flex items-center justify-center overflow-hidden">
+        <svg className="w-5 h-5 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <div className="shrink-0 w-[52px] h-[38px] rounded-md overflow-hidden border border-[#333] bg-[#1a1a1a]">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={scryfallArtUrl(cardName)}
+        alt={cardName}
+        className="w-full h-full object-cover object-top"
+        onError={() => setErrored(true)}
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
 export default function DeckList({ decks, onRemove, onRename, onReorder, onRefresh }: DeckListProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -60,7 +96,7 @@ export default function DeckList({ decks, onRemove, onRename, onReorder, onRefre
           className="flex items-center gap-2 p-3 bg-[#222222] rounded-lg group border border-[#333333]"
         >
           {/* Reorder buttons */}
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-0.5 shrink-0">
             <button
               onClick={() => onReorder(index, index - 1)}
               disabled={index === 0}
@@ -82,6 +118,9 @@ export default function DeckList({ decks, onRemove, onRename, onReorder, onRefre
               </svg>
             </button>
           </div>
+
+          {/* Commander art */}
+          <CommanderArt cardName={deck.commanderName} />
 
           {/* Deck info */}
           <div className="flex-1 min-w-0">
@@ -120,8 +159,11 @@ export default function DeckList({ decks, onRemove, onRename, onReorder, onRefre
             ) : (
               <>
                 <h3 className="font-medium text-gray-900 dark:text-white truncate">{deck.name}</h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {deck.cards.length} unique cards • {deck.cards.reduce((sum, c) => sum + c.quantity, 0)} total
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {deck.cards.length} unique · {deck.cards.reduce((sum, c) => sum + c.quantity, 0)} total
+                  {deck.commanderName && (
+                    <span className="ml-2 text-neutral-500">· {deck.commanderName}</span>
+                  )}
                 </p>
               </>
             )}
@@ -129,7 +171,7 @@ export default function DeckList({ decks, onRemove, onRename, onReorder, onRefre
 
           {/* Action buttons */}
           {editingId !== deck.id && (
-            <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
               {deck.archidektId && (
                 <button
                   onClick={() => handleRefresh(deck.id)}

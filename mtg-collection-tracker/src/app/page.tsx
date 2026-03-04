@@ -9,7 +9,7 @@ import DeckUrlInput from '@/components/DeckUrlInput';
 import DeckList from '@/components/DeckList';
 import OverlapAnalysis from '@/components/OverlapAnalysis';
 import CollectionSummary from '@/components/CollectionSummary';
-import { extractDeckId, fetchArchidektDeck, extractCollectionInput, fetchArchidektCollection } from '@/lib/archidekt';
+import { extractDeckId, fetchArchidektDeck } from '@/lib/archidekt';
 
 export default function Home() {
   const [collection, setCollection] = useState<Collection>({ cards: [], uploadedAt: null });
@@ -22,8 +22,6 @@ export default function Home() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
-  const [collectionUrlLoading, setCollectionUrlLoading] = useState(false);
-  const [collectionUrl, setCollectionUrl] = useState('');
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const showNotification = (type: 'success' | 'error', message: string) => {
@@ -50,36 +48,6 @@ export default function Home() {
   useEffect(() => {
     runAnalysis();
   }, [runAnalysis]);
-
-  const handleCollectionUrl = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const input = extractCollectionInput(collectionUrl);
-    if (!input) {
-      showNotification('error', 'Invalid input. Paste an Archidekt collection share link (archidekt.com/collection/v2/...) or a profile URL/username.');
-      return;
-    }
-
-    setCollectionUrlLoading(true);
-    try {
-      const { username: resolvedName, cards } = await fetchArchidektCollection(input);
-
-      if (cards.length === 0) {
-        showNotification('error', 'No cards found in this collection.');
-        return;
-      }
-
-      const newCollection: Collection = { cards, uploadedAt: new Date() };
-      setCollection(newCollection);
-      saveCollection(newCollection);
-      setCollectionUrl('');
-      showNotification('success', `Loaded ${cards.length} cards from ${resolvedName}'s Archidekt collection`);
-    } catch (error) {
-      console.error('Error fetching Archidekt collection:', error);
-      showNotification('error', error instanceof Error ? error.message : 'Failed to fetch collection from Archidekt.');
-    } finally {
-      setCollectionUrlLoading(false);
-    }
-  };
 
   const handleExportSettings = () => {
     exportSettings(collection, decks);
@@ -194,7 +162,7 @@ export default function Home() {
 
     setUrlLoading(true);
     try {
-      const { name, cards } = await fetchArchidektDeck(deckId);
+      const { name, cards, commanderName } = await fetchArchidektDeck(deckId);
 
       if (cards.length === 0) {
         showNotification('error', 'No cards found in the deck.');
@@ -207,6 +175,7 @@ export default function Home() {
         cards,
         uploadedAt: new Date(),
         archidektId: deckId,
+        commanderName,
       };
 
       const updatedDecks = [...decks, newDeck];
@@ -226,13 +195,13 @@ export default function Home() {
     if (!deck?.archidektId) return;
 
     try {
-      const { name, cards } = await fetchArchidektDeck(deck.archidektId);
+      const { name, cards, commanderName } = await fetchArchidektDeck(deck.archidektId);
       if (cards.length === 0) {
         showNotification('error', 'No cards found when refreshing deck.');
         return;
       }
       const updatedDecks = decks.map((d) =>
-        d.id === id ? { ...d, name, cards, uploadedAt: new Date() } : d
+        d.id === id ? { ...d, name, cards, uploadedAt: new Date(), commanderName: commanderName ?? d.commanderName } : d
       );
       setDecks(updatedDecks);
       saveDecks(updatedDecks);
@@ -418,52 +387,6 @@ export default function Home() {
               </h2>
               <div className="space-y-4">
                 <CollectionSummary collection={collection} decks={decks} onClear={clearCollection} />
-
-                {/* Archidekt collection URL import */}
-                <form onSubmit={handleCollectionUrl} className="space-y-2">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={collectionUrl}
-                      onChange={(e) => setCollectionUrl(e.target.value)}
-                      placeholder="https://archidekt.com/collection/v2/832552"
-                      disabled={collectionUrlLoading}
-                      className="flex-1 px-3 py-2 text-sm border border-[#333333] rounded-lg bg-[#111111] text-neutral-100 placeholder-neutral-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!collectionUrl.trim() || collectionUrlLoading}
-                      className="px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                    >
-                      {collectionUrlLoading ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                          </svg>
-                          Fetching…
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                          </svg>
-                          Import
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Paste a shared collection link, profile URL, or username (collection must be public)
-                  </p>
-                </form>
-
-                <div className="relative flex items-center">
-                  <div className="flex-grow border-t border-[#2a2a2a]"></div>
-                  <span className="flex-shrink mx-3 text-xs text-neutral-500">or upload a file</span>
-                  <div className="flex-grow border-t border-[#2a2a2a]"></div>
-                </div>
-
                 <FileUpload
                   onUpload={handleCollectionUpload}
                   label="Upload collection from Archidekt"
@@ -473,8 +396,8 @@ export default function Home() {
                   <p className="font-medium mb-1">How to export from Archidekt:</p>
                   <ol className="list-decimal list-inside space-y-1">
                     <li>Go to your collection on archidekt.com</li>
-                    <li>Click the export/download button</li>
-                    <li>Choose CSV format</li>
+                    <li>Click the <strong>⋯</strong> menu or export button</li>
+                    <li>Choose <strong>CSV</strong> format</li>
                     <li>Upload the file here</li>
                   </ol>
                 </div>
