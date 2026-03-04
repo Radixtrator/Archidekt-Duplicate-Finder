@@ -59,3 +59,70 @@ export function clearAllData(): void {
     localStorage.removeItem(DECKS_KEY);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Settings export / import
+// ---------------------------------------------------------------------------
+
+export interface SettingsExport {
+  version: 1;
+  exportedAt: string;
+  collection: Collection;
+  decks: Deck[];
+}
+
+/**
+ * Serialise current collection + decks to a JSON blob and trigger a
+ * browser download of the file.
+ */
+export function exportSettings(collection: Collection, decks: Deck[]): void {
+  const payload: SettingsExport = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    collection,
+    decks,
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: 'application/json',
+  });
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  a.download = `shortfall-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Parse a JSON backup file (produced by exportSettings) and return the
+ * restored collection and decks, or throw on error.
+ */
+export function parseSettingsImport(
+  json: string,
+): { collection: Collection; decks: Deck[] } {
+  const parsed: SettingsExport = JSON.parse(json);
+
+  if (!parsed || parsed.version !== 1) {
+    throw new Error(
+      'Unrecognised backup format. Only v1 Shortfall backups are supported.',
+    );
+  }
+
+  const collection: Collection = {
+    ...parsed.collection,
+    uploadedAt: parsed.collection.uploadedAt
+      ? new Date(parsed.collection.uploadedAt)
+      : null,
+  };
+
+  const decks: Deck[] = (parsed.decks ?? []).map((d) => ({
+    ...d,
+    uploadedAt: new Date(d.uploadedAt),
+  }));
+
+  return { collection, decks };
+}

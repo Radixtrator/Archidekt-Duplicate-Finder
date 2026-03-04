@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Collection, Deck, DeckAnalysis } from '@/types';
 import { parseCardList, analyzeDeckOverlaps, generateId } from '@/lib/parser';
-import { loadCollection, saveCollection, loadDecks, saveDecks, clearAllData } from '@/lib/storage';
+import { loadCollection, saveCollection, loadDecks, saveDecks, clearAllData, exportSettings, parseSettingsImport } from '@/lib/storage';
 import FileUpload from '@/components/FileUpload';
 import DeckUrlInput from '@/components/DeckUrlInput';
 import DeckList from '@/components/DeckList';
 import OverlapAnalysis from '@/components/OverlapAnalysis';
 import CollectionSummary from '@/components/CollectionSummary';
-import { extractDeckId, fetchArchidektDeck } from '@/lib/archidekt';
+import { extractDeckId, fetchArchidektDeck, extractCollectionInput, fetchArchidektCollection } from '@/lib/archidekt';
 
 export default function Home() {
   const [collection, setCollection] = useState<Collection>({ cards: [], uploadedAt: null });
@@ -22,6 +22,9 @@ export default function Home() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
+  const [collectionUrlLoading, setCollectionUrlLoading] = useState(false);
+  const [collectionUrl, setCollectionUrl] = useState('');
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -47,6 +50,67 @@ export default function Home() {
   useEffect(() => {
     runAnalysis();
   }, [runAnalysis]);
+
+  const handleCollectionUrl = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const input = extractCollectionInput(collectionUrl);
+    if (!input) {
+      showNotification('error', 'Invalid input. Paste an Archidekt collection share link (archidekt.com/collection/v2/...) or a profile URL/username.');
+      return;
+    }
+
+    setCollectionUrlLoading(true);
+    try {
+      const { username: resolvedName, cards } = await fetchArchidektCollection(input);
+
+      if (cards.length === 0) {
+        showNotification('error', 'No cards found in this collection.');
+        return;
+      }
+
+      const newCollection: Collection = { cards, uploadedAt: new Date() };
+      setCollection(newCollection);
+      saveCollection(newCollection);
+      setCollectionUrl('');
+      showNotification('success', `Loaded ${cards.length} cards from ${resolvedName}'s Archidekt collection`);
+    } catch (error) {
+      console.error('Error fetching Archidekt collection:', error);
+      showNotification('error', error instanceof Error ? error.message : 'Failed to fetch collection from Archidekt.');
+    } finally {
+      setCollectionUrlLoading(false);
+    }
+  };
+
+  const handleExportSettings = () => {
+    exportSettings(collection, decks);
+    showNotification('success', 'Backup downloaded!');
+  };
+
+  const handleImportSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const { collection: restoredCollection, decks: restoredDecks } =
+          parseSettingsImport(ev.target?.result as string);
+        setCollection(restoredCollection);
+        setDecks(restoredDecks);
+        saveCollection(restoredCollection);
+        saveDecks(restoredDecks);
+        showNotification(
+          'success',
+          `Backup restored: ${restoredCollection.cards.length} collection cards, ${restoredDecks.length} deck(s)`,
+        );
+      } catch (err) {
+        console.error('Import failed:', err);
+        showNotification('error', err instanceof Error ? err.message : 'Failed to import backup.');
+      }
+      // Reset input so the same file can be re-imported
+      if (importFileRef.current) importFileRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
 
   const handleCollectionUpload = (content: string, fileName: string) => {
     try {
@@ -273,6 +337,34 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </button>
+              {/* Hidden file input for settings import */}
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleImportSettings}
+              />
+              <button
+                onClick={() => importFileRef.current?.click()}
+                className="text-sm text-neutral-400 hover:text-orange-300 transition-colors flex items-center gap-1"
+                title="Restore backup"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Import
+              </button>
+              <button
+                onClick={handleExportSettings}
+                className="text-sm text-neutral-400 hover:text-orange-300 transition-colors flex items-center gap-1"
+                title="Export backup"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Export
+              </button>
               <button
                 onClick={handleClearAll}
                 className="text-sm text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
@@ -326,6 +418,52 @@ export default function Home() {
               </h2>
               <div className="space-y-4">
                 <CollectionSummary collection={collection} decks={decks} onClear={clearCollection} />
+
+                {/* Archidekt collection URL import */}
+                <form onSubmit={handleCollectionUrl} className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={collectionUrl}
+                      onChange={(e) => setCollectionUrl(e.target.value)}
+                      placeholder="https://archidekt.com/collection/v2/832552"
+                      disabled={collectionUrlLoading}
+                      className="flex-1 px-3 py-2 text-sm border border-[#333333] rounded-lg bg-[#111111] text-neutral-100 placeholder-neutral-500 focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:opacity-50"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!collectionUrl.trim() || collectionUrlLoading}
+                      className="px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      {collectionUrlLoading ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Fetching…
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          Import
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Paste a shared collection link, profile URL, or username (collection must be public)
+                  </p>
+                </form>
+
+                <div className="relative flex items-center">
+                  <div className="flex-grow border-t border-[#2a2a2a]"></div>
+                  <span className="flex-shrink mx-3 text-xs text-neutral-500">or upload a file</span>
+                  <div className="flex-grow border-t border-[#2a2a2a]"></div>
+                </div>
+
                 <FileUpload
                   onUpload={handleCollectionUpload}
                   label="Upload collection from Archidekt"
