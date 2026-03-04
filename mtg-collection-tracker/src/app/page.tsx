@@ -15,7 +15,7 @@ export default function Home() {
   const [collection, setCollection] = useState<Collection>({ cards: [], uploadedAt: null });
   const [decks, setDecks] = useState<Deck[]>([]);
   const [analysis, setAnalysis] = useState<DeckAnalysis | null>(null);
-  const [activeTab, setActiveTab] = useState<'upload' | 'analysis'>('upload');
+  const [activeTab, setActiveTab] = useState<'collection' | 'decks' | 'analysis'>('collection');
   const [deckName, setDeckName] = useState('');
   const [showDeckNameModal, setShowDeckNameModal] = useState(false);
   const [pendingDeckContent, setPendingDeckContent] = useState<string | null>(null);
@@ -349,14 +349,29 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 mt-6">
         <div className="flex gap-1 bg-[#1a1a1a] rounded-lg p-1 w-fit border border-[#2a2a2a]">
           <button
-            onClick={() => setActiveTab('upload')}
+            onClick={() => setActiveTab('collection')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'upload'
+              activeTab === 'collection'
                 ? 'bg-[#2a2a2a] text-neutral-100 shadow-sm'
                 : 'text-neutral-400 hover:text-neutral-100'
             }`}
           >
-            Upload Data
+            Collection
+          </button>
+          <button
+            onClick={() => setActiveTab('decks')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'decks'
+                ? 'bg-[#2a2a2a] text-neutral-100 shadow-sm'
+                : 'text-neutral-400 hover:text-neutral-100'
+            }`}
+          >
+            Decks
+            {decks.length > 0 && (
+              <span className="ml-2 bg-[#333] text-neutral-400 text-xs px-2 py-0.5 rounded-full">
+                {decks.length}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('analysis')}
@@ -366,7 +381,7 @@ export default function Home() {
                 : 'text-neutral-400 hover:text-neutral-100'
             }`}
           >
-            Card Count Analysis
+            Analysis
             {analysis && analysis.overlappingCards.length > 0 && (
               <span className="ml-2 bg-orange-500/10 text-orange-300 text-xs px-2 py-0.5 rounded-full">
                 {analysis.overlappingCards.length}
@@ -378,37 +393,33 @@ export default function Home() {
 
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {activeTab === 'upload' ? (
-          <div className="grid lg:grid-cols-2 gap-8">
-            {/* Collection Section */}
-            <section className="bg-[#191919] rounded-xl shadow-sm border border-[#2a2a2a] p-6">
-              <h2 className="text-lg font-semibold text-neutral-100 mb-4">
-                Your Collection
-              </h2>
-              <div className="space-y-4">
-                <CollectionSummary collection={collection} decks={decks} onClear={clearCollection} />
-                <FileUpload
-                  onUpload={handleCollectionUpload}
-                  label="Upload collection from Archidekt"
-                  id="collection-upload"
-                />
-                <div className="text-xs text-neutral-400 bg-[#222222] rounded p-3">
-                  <p className="font-medium mb-1">How to export from Archidekt:</p>
-                  <ol className="list-decimal list-inside space-y-1">
-                    <li>Go to your collection on archidekt.com</li>
-                    <li>Click the <strong>⋯</strong> menu or export button</li>
-                    <li>Choose <strong>CSV</strong> format</li>
-                    <li>Upload the file here</li>
-                  </ol>
-                </div>
+        {activeTab === 'collection' && (
+          <section className="bg-[#191919] rounded-xl shadow-sm border border-[#2a2a2a] p-6 max-w-xl">
+            <h2 className="text-lg font-semibold text-neutral-100 mb-4">Your Collection</h2>
+            <div className="space-y-4">
+              <CollectionSummary collection={collection} decks={decks} onClear={clearCollection} />
+              <FileUpload
+                onUpload={handleCollectionUpload}
+                label="Upload collection from Archidekt"
+                id="collection-upload"
+              />
+              <div className="text-xs text-neutral-400 bg-[#222222] rounded p-3">
+                <p className="font-medium mb-1">How to export from Archidekt:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Go to your collection on archidekt.com</li>
+                  <li>Click the <strong>⋯</strong> menu or export button</li>
+                  <li>Choose <strong>CSV</strong> format</li>
+                  <li>Upload the file here</li>
+                </ol>
               </div>
-            </section>
+            </div>
+          </section>
+        )}
 
-            {/* Decks Section */}
-            <section className="bg-[#191919] rounded-xl shadow-sm border border-[#2a2a2a] p-6">
-              <h2 className="text-lg font-semibold text-neutral-100 mb-4">
-                Your Decks
-              </h2>
+        {activeTab === 'decks' && (
+          <div className="space-y-6">
+            <div className="bg-[#191919] rounded-xl shadow-sm border border-[#2a2a2a] p-6">
+              <h2 className="text-lg font-semibold text-neutral-100 mb-4">Add a Deck</h2>
               <div className="space-y-4">
                 <DeckUrlInput onSubmit={handleDeckUrl} loading={urlLoading} />
                 <div className="relative flex items-center">
@@ -421,13 +432,6 @@ export default function Home() {
                   label="Upload a deck list"
                   id="deck-upload"
                 />
-                <DeckList 
-                  decks={decks} 
-                  onRemove={removeDeck} 
-                  onRename={renameDeck}
-                  onReorder={reorderDecks}
-                  onRefresh={refreshDeck}
-                />
                 <div className="text-xs text-neutral-400 bg-[#222222] rounded p-3">
                   <p className="font-medium mb-1">Supported formats:</p>
                   <ul className="list-disc list-inside space-y-1">
@@ -438,9 +442,24 @@ export default function Home() {
                   </ul>
                 </div>
               </div>
-            </section>
+            </div>
+
+            {decks.length > 0 && (
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-100 mb-4">Your Decks</h2>
+                <DeckList
+                  decks={decks}
+                  onRemove={removeDeck}
+                  onRename={renameDeck}
+                  onReorder={reorderDecks}
+                  onRefresh={refreshDeck}
+                />
+              </div>
+            )}
           </div>
-        ) : (
+        )}
+
+        {activeTab === 'analysis' && (
           <section className="bg-[#191919] rounded-xl shadow-sm border border-[#2a2a2a] p-6">
             <h2 className="text-lg font-semibold text-neutral-100 mb-6">
               Cards Appearing in Multiple Decks
