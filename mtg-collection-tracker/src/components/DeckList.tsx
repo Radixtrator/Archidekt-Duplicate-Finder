@@ -9,6 +9,7 @@ interface DeckListProps {
   onRename: (id: string, newName: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
   onRefresh: (id: string) => Promise<void>;
+  onToggle: (id: string, field: 'includeSideboard' | 'includeMaybeboard', value: boolean) => void;
 }
 
 function scryfallArtUrl(cardName: string) {
@@ -169,7 +170,7 @@ function DeckMenu({
   );
 }
 
-export default function DeckList({ decks, onRemove, onRename, onReorder, onRefresh }: DeckListProps) {
+export default function DeckList({ decks, onRemove, onRename, onReorder, onRefresh, onToggle }: DeckListProps) {
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
   const handleRefresh = async (id: string) => {
@@ -226,7 +227,7 @@ export default function DeckList({ decks, onRemove, onRename, onReorder, onRefre
           </div>
 
           {/* Info area */}
-          <div className="px-3 py-2.5 flex flex-col gap-0.5 border-t border-[#2a2a2a]">
+          <div className="px-3 py-2.5 flex flex-col gap-1 border-t border-[#2a2a2a]">
             <h3 className="font-semibold text-neutral-100 text-sm leading-tight line-clamp-1">
               {deck.name}
             </h3>
@@ -234,6 +235,32 @@ export default function DeckList({ decks, onRemove, onRename, onReorder, onRefre
               <p className="text-xs text-neutral-500 truncate">{deck.commanderName}</p>
             ) : (
               <p className="text-xs text-neutral-700 italic">No commander</p>
+            )}
+            {(deck.cards.some(c => c.sideboard) || deck.cards.some(c => c.maybeboard)) && (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                {deck.cards.some(c => c.sideboard) && (
+                  <label className="flex items-center gap-1.5 text-xs text-neutral-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={deck.includeSideboard}
+                      onChange={(e) => onToggle(deck.id, 'includeSideboard', e.target.checked)}
+                      className="w-3 h-3 rounded border-[#444] bg-[#111] text-orange-500 focus:ring-orange-500 focus:ring-offset-0 cursor-pointer accent-orange-500"
+                    />
+                    Sideboard
+                  </label>
+                )}
+                {deck.cards.some(c => c.maybeboard) && (
+                  <label className="flex items-center gap-1.5 text-xs text-neutral-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={deck.includeMaybeboard}
+                      onChange={(e) => onToggle(deck.id, 'includeMaybeboard', e.target.checked)}
+                      className="w-3 h-3 rounded border-[#444] bg-[#111] text-orange-500 focus:ring-orange-500 focus:ring-offset-0 cursor-pointer accent-orange-500"
+                    />
+                    Maybeboard
+                  </label>
+                )}
+              </div>
             )}
           </div>
         </div>

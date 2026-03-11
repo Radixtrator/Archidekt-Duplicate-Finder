@@ -43,6 +43,8 @@ export function loadDecks(): Deck[] {
         return parsed.map((deck: Deck) => ({
           ...deck,
           uploadedAt: new Date(deck.uploadedAt),
+          includeSideboard: deck.includeSideboard ?? true,
+          includeMaybeboard: deck.includeMaybeboard ?? true,
         }));
       }
     } catch (error) {
@@ -122,6 +124,8 @@ export function parseSettingsImport(
   const decks: Deck[] = (parsed.decks ?? []).map((d) => ({
     ...d,
     uploadedAt: new Date(d.uploadedAt),
+    includeSideboard: d.includeSideboard ?? true,
+    includeMaybeboard: d.includeMaybeboard ?? true,
   }));
 
   return { collection, decks };

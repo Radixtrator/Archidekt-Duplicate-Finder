@@ -71,6 +71,7 @@ export async function fetchArchidektDeck(
         setName: c.card.edition?.name || undefined,
         collectorNumber: c.card.collectorNumber || undefined,
         maybeboard: cats.includes('maybeboard') || undefined,
+        sideboard: cats.includes('sideboard') || undefined,
       };
     });
 

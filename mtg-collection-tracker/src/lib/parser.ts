@@ -166,6 +166,10 @@ export function analyzeDeckOverlaps(collection: Collection, decks: Deck[]): Deck
   // Process each deck
   for (const deck of decks) {
     for (const card of deck.cards) {
+      // Skip excluded cards based on deck toggles
+      if (card.sideboard && !deck.includeSideboard) continue;
+      if (card.maybeboard && !deck.includeMaybeboard) continue;
+
       // Clean card name to handle legacy data with category codes
       const cleanedName = cleanCardName(card.name);
       const normalizedName = normalizeCardName(cleanedName);
@@ -240,7 +244,9 @@ export function getUnallocatedCards(collection: Collection, decks: Deck[]): Card
   const deckUsage = new Map<string, number>();
   for (const deck of decks) {
     for (const card of deck.cards) {
+      if (card.maybeboard && !deck.includeMaybeboard) continue;
       if (card.maybeboard) continue;
+      if (card.sideboard && !deck.includeSideboard) continue;
       const normalized = normalizeCardName(cleanCardName(card.name));
       deckUsage.set(normalized, (deckUsage.get(normalized) || 0) + card.quantity);
     }

@@ -39,14 +39,15 @@ interface MoxfieldDeckResponse {
   maybeboard: MoxfieldBoard;
 }
 
-function boardToCards(board: MoxfieldBoard, maybeboard?: boolean): Card[] {
+function boardToCards(board: MoxfieldBoard, options?: { maybeboard?: boolean; sideboard?: boolean }): Card[] {
   return Object.values(board).map((entry) => ({
     name: entry.card.name,
     quantity: entry.quantity,
     setCode: entry.card.set || undefined,
     setName: entry.card.set_name || undefined,
     collectorNumber: entry.card.cn || undefined,
-    maybeboard: maybeboard || undefined,
+    maybeboard: options?.maybeboard || undefined,
+    sideboard: options?.sideboard || undefined,
   }));
 }
 
@@ -71,8 +72,8 @@ export async function fetchMoxfieldDeck(
     ...boardToCards(data.commanders ?? {}),
     ...boardToCards(data.companions ?? {}),
     ...boardToCards(data.mainboard ?? {}),
-    ...boardToCards(data.sideboard ?? {}),
-    ...boardToCards(data.maybeboard ?? {}, true),
+    ...boardToCards(data.sideboard ?? {}, { sideboard: true }),
+    ...boardToCards(data.maybeboard ?? {}, { maybeboard: true }),
   ];
 
   // The first commander entry is the commander

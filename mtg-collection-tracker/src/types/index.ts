@@ -10,6 +10,7 @@ export interface Card {
   condition?: string;
   language?: string;
   maybeboard?: boolean;
+  sideboard?: boolean;
 }
 
 export interface Deck {
@@ -20,6 +21,8 @@ export interface Deck {
   archidektId?: string;
   moxfieldId?: string;
   commanderName?: string;
+  includeSideboard: boolean;
+  includeMaybeboard: boolean;
 }
 
 export interface Collection {

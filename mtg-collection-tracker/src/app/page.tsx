@@ -24,6 +24,7 @@ export default function Home() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
+  const kofiRef = useRef<HTMLDivElement>(null);
 
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
@@ -34,6 +35,22 @@ export default function Home() {
   useEffect(() => {
     setCollection(loadCollection());
     setDecks(loadDecks());
+  }, []);
+
+  // Load Ko-fi widget
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://storage.ko-fi.com/cdn/widget/Widget_2.js';
+    script.async = true;
+    script.onload = () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const w = (window as any).kofiwidget2;
+      if (w && kofiRef.current) {
+        w.init('Help me buy singles', '#72a4f2', 'F1F21VGARY');
+        kofiRef.current.innerHTML = w.getHTML();
+      }
+    };
+    document.head.appendChild(script);
   }, []);
 
   // Analyze decks when collection or decks change
@@ -135,6 +152,8 @@ export default function Home() {
         name: deckName.trim(),
         cards,
         uploadedAt: new Date(),
+        includeSideboard: true,
+        includeMaybeboard: true,
       };
       
       const updatedDecks = [...decks, newDeck];
@@ -195,6 +214,8 @@ export default function Home() {
         archidektId: archidektId && !moxfieldId ? archidektId : undefined,
         moxfieldId: moxfieldId || undefined,
         commanderName,
+        includeSideboard: true,
+        includeMaybeboard: true,
       };
 
       const updatedDecks = [...decks, newDeck];
@@ -266,6 +287,14 @@ export default function Home() {
     const updatedDecks = [...decks];
     const [movedDeck] = updatedDecks.splice(fromIndex, 1);
     updatedDecks.splice(toIndex, 0, movedDeck);
+    setDecks(updatedDecks);
+    saveDecks(updatedDecks);
+  };
+
+  const toggleDeckOption = (id: string, field: 'includeSideboard' | 'includeMaybeboard', value: boolean) => {
+    const updatedDecks = decks.map((d) =>
+      d.id === id ? { ...d, [field]: value } : d
+    );
     setDecks(updatedDecks);
     saveDecks(updatedDecks);
   };
@@ -434,13 +463,13 @@ export default function Home() {
               <CollectionSummary collection={collection} decks={decks} onClear={clearCollection} />
               <FileUpload
                 onUpload={handleCollectionUpload}
-                label="Upload collection from Archidekt"
+                label="Upload collection (Archidekt or Moxfield CSV)"
                 id="collection-upload"
               />
               <div className="text-xs text-neutral-400 bg-[#222222] rounded p-3">
-                <p className="font-medium mb-1">How to export from Archidekt:</p>
+                <p className="font-medium mb-1">How to export your collection:</p>
                 <ol className="list-decimal list-inside space-y-1">
-                  <li>Go to your collection on archidekt.com</li>
+                  <li>Go to your collection on archidekt.com or moxfield.com</li>
                   <li>Click the <strong>⋯</strong> menu or export button</li>
                   <li>Choose <strong>CSV</strong> format</li>
                   <li>Upload the file here</li>
@@ -487,6 +516,7 @@ export default function Home() {
                   onRename={renameDeck}
                   onReorder={reorderDecks}
                   onRefresh={refreshDeck}
+                  onToggle={toggleDeckOption}
                 />
               </div>
             )}
@@ -567,7 +597,7 @@ export default function Home() {
                   Upload Your Collection
                 </h4>
                 <div className="text-gray-600 dark:text-gray-300 space-y-2 ml-9">
-                  <p>Export your collection from Archidekt:</p>
+                  <p>Export your collection from Archidekt or Moxfield:</p>
                   <ol className="list-decimal list-inside space-y-1 text-sm">
                     <li>Go to <a href="https://archidekt.com" target="_blank" rel="noopener noreferrer" className="text-orange-300 hover:underline">archidekt.com</a> or <a href="https://www.moxfield.com" target="_blank" rel="noopener noreferrer" className="text-orange-300 hover:underline">moxfield.com</a> and sign in</li>
                     <li>Navigate to your Collection page</li>
@@ -692,6 +722,7 @@ export default function Home() {
               <span>Your data stays in your browser. No server, no tracking.</span>
             </div>
             <div className="flex items-center gap-4">
+              <div ref={kofiRef} />
               <a
                 href="https://github.com/Radixtrator/Archidekt-Duplicate-Finder"
                 target="_blank"
